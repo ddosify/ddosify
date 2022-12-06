@@ -22,6 +22,7 @@ package report
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -31,7 +32,7 @@ import (
 
 func TestInitStdoutJson(t *testing.T) {
 	sj := &stdoutJson{}
-	sj.Init()
+	sj.Init(false)
 
 	if sj.doneChan == nil {
 		t.Errorf("DoneChan should be initialized")
@@ -130,7 +131,7 @@ func TestStdoutJsonStart(t *testing.T) {
 	}
 
 	s := &stdoutJson{}
-	s.Init()
+	s.Init(false)
 
 	responseChan := make(chan *types.Response, len(responses))
 	go s.Start(responseChan)
@@ -253,4 +254,8 @@ func TestStdoutJsonOutput(t *testing.T) {
 	if output != expectedOutput {
 		t.Errorf("Expected: %v, Found: %v", expectedOutput, output)
 	}
+}
+
+var printJson = func(j []byte) {
+	fmt.Println(string(j))
 }

@@ -21,6 +21,8 @@
 package report
 
 import (
+	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -39,6 +41,7 @@ func aggregate(result *Result, response *types.Response) {
 				StatusCodeDist: make(map[int]int, 0),
 				ErrorDist:      make(map[string]int),
 				Durations:      map[string]float32{},
+				TotalDurations: map[string][]float32{},
 			}
 		}
 		item := result.ItemReports[rr.ScenarioItemID]
@@ -60,7 +63,12 @@ func aggregate(result *Result, response *types.Response) {
 				}
 			}
 		}
+	}
 
+	for _, report := range result.ItemReports {
+		for key, duration := range report.Durations {
+			report.TotalDurations[key] = append(report.TotalDurations[key], duration)
+		}
 	}
 
 	// Don't change avg duration if there is a error
@@ -96,12 +104,29 @@ func (r *Result) failedPercentage() int {
 }
 
 type ScenarioItemReport struct {
-	Name           string             `json:"name"`
-	StatusCodeDist map[int]int        `json:"status_code_dist"`
-	ErrorDist      map[string]int     `json:"error_dist"`
-	Durations      map[string]float32 `json:"durations"`
-	SuccessCount   int64              `json:"success_count"`
-	FailedCount    int64              `json:"fail_count"`
+	Name           string               `json:"name"`
+	StatusCodeDist map[int]int          `json:"status_code_dist"`
+	ErrorDist      map[string]int       `json:"error_dist"`
+	Durations      map[string]float32   `json:"durations"`
+	TotalDurations map[string][]float32 `json:"total_durations"`
+	SuccessCount   int64                `json:"success_count"`
+	FailedCount    int64                `json:"fail_count"`
+}
+
+func (s *ScenarioItemReport) DurationPercentile(p int) float32 {
+	if p < 0 || p > 100 {
+		return 0
+	}
+
+	durations, ok := s.TotalDurations["duration"]
+	if !ok {
+		return 0
+	}
+
+	// todo: it could be optimized by always sorted array being used in TotalDurations so we would not make this call.
+	sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
+
+	return Percentile(durations, p)
 }
 
 func (s *ScenarioItemReport) successPercentage() int {
@@ -117,4 +142,18 @@ func (s *ScenarioItemReport) failedPercentage() int {
 		return 0
 	}
 	return 100 - s.successPercentage()
+}
+
+func Percentile(list []float32, p int) float32 {
+	if p < 0 || p > 100 {
+		return 0
+	}
+
+	n := int(math.Round((float64(p) / 100.0) * float64(len(list))))
+	if n > 0 {
+		// I am not sure about the case where n == 0
+		n--
+	}
+
+	return list[n]
 }

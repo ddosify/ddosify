@@ -45,10 +45,11 @@ func init() {
 }
 
 type stdout struct {
-	doneChan    chan struct{}
-	result      *Result
-	printTicker *time.Ticker
-	mu          sync.Mutex
+	doneChan          chan struct{}
+	result            *Result
+	printTicker       *time.Ticker
+	mu                sync.Mutex
+	reportPercentiles bool
 }
 
 var blue = color.New(color.FgHiBlue).SprintFunc()
@@ -56,11 +57,12 @@ var green = color.New(color.FgHiGreen).SprintFunc()
 var red = color.New(color.FgHiRed).SprintFunc()
 var realTimePrintInterval = time.Duration(1500) * time.Millisecond
 
-func (s *stdout) Init() (err error) {
+func (s *stdout) Init(reportPercentiles bool) (err error) {
 	s.doneChan = make(chan struct{})
 	s.result = &Result{
 		ItemReports: make(map[uint16]*ScenarioItemReport),
 	}
+	s.reportPercentiles = reportPercentiles
 
 	color.Cyan("%s  Initializing... \n", emoji.Gear)
 	return
@@ -108,11 +110,10 @@ func (s *stdout) realTimePrintStart() {
 
 func (s *stdout) liveResultPrint() {
 	fmt.Fprintf(out, "%s %s %s\n",
-		green(fmt.Sprintf("%s  Successful Run: %-6d %3d%% %5s",
-			emoji.CheckMark, s.result.SuccessCount, s.result.successPercentage(), "")),
-		red(fmt.Sprintf("%s Failed Run: %-6d %3d%% %5s",
-			emoji.CrossMark, s.result.FailedCount, s.result.failedPercentage(), "")),
-		blue(fmt.Sprintf("%s  Avg. Duration: %.5fs", emoji.Stopwatch, s.result.AvgDuration)))
+		green(fmt.Sprintf("%s  Successful Run: %-6d %3d%% %5s", emoji.CheckMark, s.result.SuccessCount, s.result.successPercentage(), "")),
+		red(fmt.Sprintf("%s Failed Run: %-6d %3d%% %5s", emoji.CrossMark, s.result.FailedCount, s.result.failedPercentage(), "")),
+		blue(fmt.Sprintf("%s  Avg. Duration: %.5fs", emoji.Stopwatch, s.result.AvgDuration)),
+	)
 }
 
 func (s *stdout) realTimePrintStop() {
@@ -171,6 +172,22 @@ func (s *stdout) printDetails() {
 		})
 		for _, v := range durationList {
 			fmt.Fprintf(w, "  %s\t:%.4fs\n", v.name, v.duration)
+		}
+
+		if s.reportPercentiles {
+			// print percentalies
+			percentiles := []map[string]float32{
+				{"P99": v.DurationPercentile(99)},
+				{"P95": v.DurationPercentile(95)},
+				{"P90": v.DurationPercentile(90)},
+				{"P80": v.DurationPercentile(80)},
+			}
+			fmt.Fprintln(w, "\nPercentiles:")
+			for _, val := range percentiles {
+				for name, percentile := range val {
+					fmt.Fprintf(w, "  %s\t:%.4fs\n", name, percentile)
+				}
+			}
 		}
 
 		if len(v.StatusCodeDist) > 0 {

@@ -91,7 +91,7 @@ func TestResult(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	s := &stdout{}
-	s.Init()
+	s.Init(false)
 
 	if s.doneChan == nil {
 		t.Errorf("DoneChan should be initialized")
@@ -190,7 +190,7 @@ func TestStart(t *testing.T) {
 	}
 
 	s := &stdout{}
-	s.Init()
+	s.Init(false)
 
 	responseChan := make(chan *types.Response, len(responses))
 	go s.Start(responseChan)
